@@ -1,10 +1,11 @@
 pipeline {
-    agent { label 'docker' }   // 🔥 THIS fixes everything
+    agent any
 
     environment {
         DOCKERHUB_CREDS = credentials('dockerhub-creds')
         BEST_ACCURACY   = credentials('best-accuracy')
         IMAGE_NAME      = '2022bcs0187sujal/batch2_2022bcs0187'
+        DOCKER_AVAILABLE = 'false'
     }
 
     stages {
@@ -16,15 +17,17 @@ pipeline {
         }
 
         stage('Setup Python Virtual Environment') {
-            agent {
-                docker {
-                    image 'python:3.10-slim'
-                    args '-u root'
-                }
-            }
             steps {
                 sh '''
-                    python3 -m venv venv
+                    if command -v python3 >/dev/null 2>&1; then
+                      PY=python3
+                    elif command -v python >/dev/null 2>&1; then
+                      PY=python
+                    else
+                      echo "ERROR: Python is not installed on this node." >&2
+                      exit 1
+                    fi
+                    $PY -m venv venv
                     . venv/bin/activate
                     pip install --upgrade pip
                     pip install -r requirements.txt
@@ -32,17 +35,28 @@ pipeline {
             }
         }
 
-        stage('Train Model') {
-            agent {
-                docker {
-                    image 'python:3.10-slim'
-                    args '-u root'
+        stage('Detect Docker') {
+            steps {
+                script {
+                    env.DOCKER_AVAILABLE = sh(script: 'if command -v docker >/dev/null 2>&1; then echo true; else echo false; fi', returnStdout: true).trim()
+                    echo "Docker available: ${env.DOCKER_AVAILABLE}"
                 }
             }
+        }
+
+        stage('Train Model') {
             steps {
                 sh '''
+                    if command -v python3 >/dev/null 2>&1; then
+                      PY=python3
+                    elif command -v python >/dev/null 2>&1; then
+                      PY=python
+                    else
+                      echo "ERROR: Python is not installed on this node." >&2
+                      exit 1
+                    fi
                     . venv/bin/activate
-                    python scripts/train.py
+                    $PY scripts/train.py
                     mkdir -p app/artifacts
                     cp output/results/results.json app/artifacts/metrics.json
                 '''
@@ -75,7 +89,10 @@ pipeline {
 
         stage('Build Docker Image') {
             when {
-                expression { env.IS_BETTER == 'true' }
+                allOf {
+                    expression { env.IS_BETTER == 'true' }
+                    expression { env.DOCKER_AVAILABLE == 'true' }
+                }
             }
             steps {
                 sh '''
@@ -88,7 +105,10 @@ pipeline {
 
         stage('Push Docker Image') {
             when {
-                expression { env.IS_BETTER == 'true' }
+                allOf {
+                    expression { env.IS_BETTER == 'true' }
+                    expression { env.DOCKER_AVAILABLE == 'true' }
+                }
             }
             steps {
                 sh 'docker push $IMAGE_NAME:latest'
