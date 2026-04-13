@@ -23,6 +23,19 @@ pipeline {
                       PY=python3
                     elif command -v python >/dev/null 2>&1; then
                       PY=python
+                    elif command -v apt-get >/dev/null 2>&1; then
+                      SUDO=''
+                      if [ "$(id -u)" -ne 0 ]; then
+                        if command -v sudo >/dev/null 2>&1; then
+                          SUDO=sudo
+                        else
+                          echo "ERROR: Python is not installed and sudo is unavailable." >&2
+                          exit 1
+                        fi
+                      fi
+                      $SUDO apt-get update
+                      $SUDO apt-get install -y python3 python3-venv python3-pip
+                      PY=python3
                     else
                       echo "ERROR: Python is not installed on this node." >&2
                       exit 1
