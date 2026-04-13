@@ -1,5 +1,5 @@
 pipeline {
-    agent any   // 🔥 THIS fixes everything
+    agent { label 'docker' }   // 🔥 THIS fixes everything
 
     environment {
         DOCKERHUB_CREDS = credentials('dockerhub-creds')
