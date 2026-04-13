@@ -42,8 +42,8 @@ pipeline {
                     fi
                     $PY -m venv venv
                     . venv/bin/activate
-                    pip install --upgrade pip
-                    pip install -r requirements.txt
+                    $PY -m pip install --upgrade pip
+                    $PY -m pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt
                 '''
             }
         }
